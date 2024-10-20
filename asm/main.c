@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-int main() {
+void simple_test() {
     asm_jmp_buf jmpbuf;
     int r = asm_setjmp(jmpbuf);
     int buf[10];
@@ -21,10 +21,85 @@ int main() {
         }
         free(buf_copy);
 
-        // TODO: add more tests here.
         asm_longjmp(jmpbuf, 123);
     } else {
         assert(r == 123);
-        printf("PASSED.\n");
+        printf("Simple Test Passed.\n");
     }
+}
+
+asm_jmp_buf bufferA, bufferB;
+void routineB();
+
+void routineA() {
+    int r;
+
+    r = asm_setjmp(bufferA);
+    if (r == 0)
+        routineB();
+    assert(r == 10001);
+
+    r = asm_setjmp(bufferA);
+    if (r == 0)
+        asm_longjmp(bufferB, 20001);
+    assert(r == 10002);
+
+    r = asm_setjmp(bufferA);
+    if (r == 0)
+        asm_longjmp(bufferB, 20002);
+    assert(r == 10003);
+}
+
+void routineB() {
+    int r;
+
+    r = asm_setjmp(bufferB);
+    if (r == 0)
+        asm_longjmp(bufferA, 10001);
+    assert(r == 20001);
+
+    r = asm_setjmp(bufferB);
+    if (r == 0)
+        asm_longjmp(bufferA, 10002);
+    assert(r == 20002);
+
+    r = asm_setjmp(bufferB);
+    if (r == 0)
+        asm_longjmp(bufferA, 10003);
+    assert(r == 20003);
+}
+
+void simple_coroutines() {
+    routineA();
+    printf("Simple Coroutines Passed.\n");
+}
+
+void f(asm_jmp_buf *env, int n) {
+    if (n >= 114) {
+        asm_longjmp(*env, n);
+        // should not be here
+        assert(0);
+        return;
+    } else {
+        f(env, n + 1);
+    }
+}
+
+void simple_recursion() {
+    // also test jmpbuf on heap
+    asm_jmp_buf *jmpbuf = malloc(sizeof(asm_jmp_buf));
+    int r = asm_setjmp(*jmpbuf);
+    if (r == 0) {
+        f(jmpbuf, 1);
+    } else {
+        assert(r == 114);
+        printf("Recursion reaches %d\n", r);
+    }
+    free(jmpbuf);
+}
+
+int main() {
+    simple_test();
+    simple_coroutines();
+    simple_recursion();
 }
