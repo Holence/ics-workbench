@@ -77,9 +77,7 @@ void simple_coroutines() {
 void f(asm_jmp_buf *env, int n) {
     if (n >= 114) {
         asm_longjmp(*env, n);
-        // should not be here
-        assert(0);
-        return;
+        assert(0);  // should not be here
     } else {
         f(env, n + 1);
     }

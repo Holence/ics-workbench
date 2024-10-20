@@ -59,7 +59,7 @@ void *asm_memcpy(void *dest, const void *src, size_t n) {
 // |---------| <-- rsp (rsp after call asm_setjmp)
 // |         |
 
-// 所以下面就不管rbp了
+// 但依旧需要存储%rbp里的值，因为编译器可以把%rbp作为普通寄存器使用
 
 int asm_setjmp(asm_jmp_buf env) {
     asm(
@@ -72,6 +72,7 @@ int asm_setjmp(asm_jmp_buf env) {
         "mov %%rax, %[rsp];"
         // others
         "mov %%rbx, %[rbx];"
+        "mov %%rbp, %[rbp];"
         "mov %%r12, %[r12];"
         "mov %%r13, %[r13];"
         "mov %%r14, %[r14];"
@@ -79,6 +80,7 @@ int asm_setjmp(asm_jmp_buf env) {
         : [rip] "=m"(env[rip_index]),
           [rsp] "=m"(env[rsp_index]),
           [rbx] "=m"(env[rbx_index]),
+          [rbp] "=m"(env[rbp_index]),
           [r12] "=m"(env[r12_index]),
           [r13] "=m"(env[r13_index]),
           [r14] "=m"(env[r14_index]),
@@ -99,6 +101,7 @@ void asm_longjmp(asm_jmp_buf env, int val) {
         // restore others
         "mov %[rsp], %%rsp;"
         "mov %[rbx], %%rbx;"
+        "mov %[rbp], %%rbp;"
         "mov %[r12], %%r12;"
         "mov %[r13], %%r13;"
         "mov %[r14], %%r14;"
@@ -112,6 +115,7 @@ void asm_longjmp(asm_jmp_buf env, int val) {
         : [rip] "m"(env[rip_index]),
           [rsp] "m"(env[rsp_index]),
           [rbx] "m"(env[rbx_index]),
+          [rbp] "m"(env[rbp_index]),
           [r12] "m"(env[r12_index]),
           [r13] "m"(env[r13_index]),
           [r14] "m"(env[r14_index]),

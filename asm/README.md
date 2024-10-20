@@ -47,9 +47,11 @@ longjmp(jmpbuf, 123);
 
 我们想要保存`B`点处的状态机，其实就等价于从一个空的`setjmp`函数中return后的状态，**此时`rsp`恢复为调用前的状态，`rip`为`B`点，其他就是要维持caller-owned不变**。所以`setjmp`只需要正确存储`%rsp`,`%rbx`,`%rbp`,`%r12`,`%r13`,`%r14`,`%r15`和`%rip`就行了。
 
-由于`-O1`（及以上）中`%rbp`被优化了（见[-fomit-frame-pointer](https://gcc.gnu.org/onlinedocs/gcc/Optimize-Options.html)），那就又可以少存一个东西了。
+由于`-O1`（及以上）中`%rbp`被优化了（见[-fomit-frame-pointer](https://gcc.gnu.org/onlinedocs/gcc/Optimize-Options.html)），所以栈上的情况有变。虽然已经不存在"frame-pointer"的东西了，但`%rbp`寄存器依旧可能被编译器作为普通寄存器使用，所以依旧需要存储%rbp里的值。
 
 ```
+x86-64
+
 // -O0，繁文缛节
 // |         |
 // |---------| <-- rsp + 16 (old rsp, rsp before call asm_setjmp)
