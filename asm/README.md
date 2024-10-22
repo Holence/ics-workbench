@@ -6,7 +6,7 @@
 >
 > A typical use of setjmp/longjmp is implementation of an exception mechanism that exploits the ability of longjmp to reestablish program or thread state, even across multiple levels of function calls. A less common use of setjmp is to create syntax similar to coroutines.
 
-x86 reg table
+x86-64 reg table
 
 | Register | Conventional use                | Low 32-bits | Low 16-bits | Low 8-bits |
 |----------|---------------------------------|-------------|-------------|------------|
@@ -45,31 +45,41 @@ longjmp(jmpbuf, 123);
 
 按照Calling Convention的约定，在`A`处步入`setjmp`时，caller应该已经在栈中保存了callee-owned，进入`setjmp`后，这些寄存器都是可以被callee霍霍的，都是无关紧要的。而caller-owned是不允许霍霍的，是需要callee妥善保护并归还的。
 
-我们想要保存`B`点处的状态机，其实就等价于从一个空的`setjmp`函数中return后的状态，**此时`rsp`恢复为调用前的状态，`rip`为`B`点，其他就是要维持caller-owned不变**。所以`setjmp`只需要正确存储`%rsp`,`%rbx`,`%rbp`,`%r12`,`%r13`,`%r14`,`%r15`和`%rip`就行了。
+我们想要保存`B`点处的状态机，其实就等价于从一个空的`setjmp`函数中return后的状态，**此时`rsp`、`rbp`恢复为调用前的状态，`rip`为`B`点，其他就是要维持caller-owned不变**。所以`setjmp`只需要正确存储`%rsp`,`%rbx`,`%rbp`,`%r12`,`%r13`,`%r14`,`%r15`和`%rip`就行了。
 
-由于`-O1`（及以上）中`%rbp`被优化了（见[-fomit-frame-pointer](https://gcc.gnu.org/onlinedocs/gcc/Optimize-Options.html)），所以栈上的情况有变。虽然已经不存在"frame-pointer"的东西了，但`%rbp`寄存器依旧可能被编译器作为普通寄存器使用，所以依旧需要存储%rbp里的值。
+`%rbp`的情况很特殊，x86的传统是进入函数（进入`setjmp`）会`push %rbp; mov %rsp,%rbp;`，但在`-O1`（及以上）中**一部分**函数中，这些又会被优化（见[-fomit-frame-pointer](https://gcc.gnu.org/onlinedocs/gcc/Optimize-Options.html)），这些函数中就不存在"frame-pointer"的东西了，`%rbp`寄存器可能被编译器作为普通寄存器使用。
+
+`B`点处的`%rbp`和`A`点处一样，但现在却因为编译器不同，导致进入`setjmp`后，需要存储的`%rbp`不知道在哪儿，可能`%rbp`被`push`到栈上了，可能`%rbp`还在寄存器里：
 
 ```
 x86-64
 
-// -O0，繁文缛节
-// |         |
-// |---------| <-- rsp + 16 (old rsp, rsp before call asm_setjmp)
-// | old rip |
-// |---------| <-- rsp + 8
-// | old rbp |
-// |---------| <-- rsp (rsp after call asm_setjmp)
-// |         |
+-O0，繁文缛节
+|         |
+|---------| <-- rsp + 16 (old rsp, rsp before call asm_setjmp)
+| old rip |
+|---------| <-- rsp + 8
+| old rbp |
+|---------| <-- rsp (rsp after call asm_setjmp)
+|         |
 
-// -O1就没有rbp的破事了
-// |         |
-// |---------| <-- rsp + 8 (old rsp, rsp before call asm_setjmp)
-// | old rip |
-// |---------| <-- rsp (rsp after call asm_setjmp)
-// |         |
+-O1以上的部分函数
+|         |
+|---------| <-- rsp + 8 (old rsp, rsp before call asm_setjmp)
+| old rip |
+|---------| <-- rsp (rsp after call asm_setjmp)
+|         |
 ```
 
-`longjmp`就很简单了，恢复所有值即可，并设置返回值到`rax`中（注意`rip`的恢复只能用`jmp`指令实现）
+所以想要确定`%rbp`里的值，就得让编译器编译出一种确定的`setjmp`。
+
+> 好像`__attribute__((naked))`是干这种事的，但不知道为什么函数的最后会生成`ud2`（不明指令）❓
+
+我是先用Extended Asm写的，然后用`-O1`编译出不含`push %rbp; mov %rsp,%rbp;`的版本，然后直接把编译出的汇编函数贴到c文件里，然后用[`.global`]((https://sourceware.org/binutils/docs/as/Global.html))声明一下。
+
+如果要追求可移植性，那就`#if`判断CPU架构，然后定义不同的呗。
 
 > [!TIP]
 > 由于接口是这样的`int asm_setjmp(asm_jmp_buf env);`，为了让`asm_setjmp`能够设置外部的值，`asm_jmp_buf`得定义为指针，而不是结构体！
+
+`longjmp`就很简单了，恢复所有值即可，并设置返回值到`rax`中（注意`rip`的恢复只能用`jmp`指令实现）

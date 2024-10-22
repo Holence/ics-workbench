@@ -1,5 +1,4 @@
 #include "asm.h"
-#include <string.h>
 
 int64_t asm_add(int64_t a, int64_t b) {
     asm("add %1, %0"
@@ -43,60 +42,61 @@ void *asm_memcpy(void *dest, const void *src, size_t n) {
     return dest;
 }
 
-// -O0，繁文缛节
-// |         |
-// |---------| <-- rsp + 16 (old rsp, rsp before call asm_setjmp)
-// | old rip |
-// |---------| <-- rsp + 8
-// | old rbp |
-// |---------| <-- rsp (rsp after call asm_setjmp)
-// |         |
+// int asm_setjmp(asm_jmp_buf env) {
+//     asm(
+//         // save old pc
+//         "mov (%%rsp), %%rax;"  // load old pc to rax
+//         "mov %%rax, %[rip];"   // save rax to env->rip
+//         // save old rsp
+//         "mov %%rsp, %%rax;"
+//         "add $8, %%rax;"
+//         "mov %%rax, %[rsp];"
+//         // others
+//         "mov %%rbx, %[rbx];"
+//         "mov %%rbp, %[rbp];"
+//         "mov %%r12, %[r12];"
+//         "mov %%r13, %[r13];"
+//         "mov %%r14, %[r14];"
+//         "mov %%r15, %[r15];"
+//         : [rip] "=m"(env[rip_index]),
+//           [rsp] "=m"(env[rsp_index]),
+//           [rbx] "=m"(env[rbx_index]),
+//           [rbp] "=m"(env[rbp_index]),
+//           [r12] "=m"(env[r12_index]),
+//           [r13] "=m"(env[r13_index]),
+//           [r14] "=m"(env[r14_index]),
+//           [r15] "=m"(env[r15_index])
+//         :
+//         : "memory");
+//     return 0;
+// }
 
-// -O1就没有rbp的破事了
-// |         |
-// |---------| <-- rsp + 8 (old rsp, rsp before call asm_setjmp)
-// | old rip |
-// |---------| <-- rsp (rsp after call asm_setjmp)
-// |         |
+// 为了在进入asm_setjmp时，让rbp免受“不可控的编译器优化”影响
+// 这里用上面的函数编译出汇编后直接固定贴入，具体解释见README.md
+asm("\
+.global asm_setjmp\n\
+asm_setjmp:\n\
+    mov (%rsp),%rax\n\
+    mov %rax,0x38(%rdi)\n\
+    mov %rsp,%rax\n\
+    add $0x8,%rax\n\
+    mov %rax,(%rdi)\n\
+    mov %rbx,0x8(%rdi)\n\
+    mov %rbp,0x10(%rdi)\n\
+    mov %r12,0x18(%rdi)\n\
+    mov %r13,0x20(%rdi)\n\
+    mov %r14,0x28(%rdi)\n\
+    mov %r15,0x30(%rdi)\n\
+    mov $0x0,%eax\n\
+    ret \n\
+");
 
-// 但依旧需要存储%rbp里的值，因为编译器可以把%rbp作为普通寄存器使用
-
-int asm_setjmp(asm_jmp_buf env) {
-    asm(
-        // save old pc
-        "mov (%%rsp), %%rax;"  // load old pc to rax
-        "mov %%rax, %[rip];"   // save rax to env->rip
-        // save old rsp
-        "mov %%rsp, %%rax;"
-        "add $8, %%rax;"
-        "mov %%rax, %[rsp];"
-        // others
-        "mov %%rbx, %[rbx];"
-        "mov %%rbp, %[rbp];"
-        "mov %%r12, %[r12];"
-        "mov %%r13, %[r13];"
-        "mov %%r14, %[r14];"
-        "mov %%r15, %[r15];"
-        : [rip] "=m"(env[rip_index]),
-          [rsp] "=m"(env[rsp_index]),
-          [rbx] "=m"(env[rbx_index]),
-          [rbp] "=m"(env[rbp_index]),
-          [r12] "=m"(env[r12_index]),
-          [r13] "=m"(env[r13_index]),
-          [r14] "=m"(env[r14_index]),
-          [r15] "=m"(env[r15_index])
-        :
-        : "memory");
-    return 0;
-}
-
-#include <assert.h>
+// #include <assert.h>
 void asm_longjmp(asm_jmp_buf env, int val) {
-    // (uint64_t*)env is in %rdi
-    // val is in %rsi
     asm(
         // set rax to return value
-        "mov %%rsi, %%rax;"
+        // int进来是esi，对应这里也要写成eax而不是rax
+        "mov %[val], %%eax;"
 
         // restore others
         "mov %[rsp], %%rsp;"
@@ -112,15 +112,17 @@ void asm_longjmp(asm_jmp_buf env, int val) {
         // restore rip
         "jmp *%%rcx;"
         :
-        : [rip] "m"(env[rip_index]),
+        : [val] "rm"(val),
+          [rip] "m"(env[rip_index]),
           [rsp] "m"(env[rsp_index]),
           [rbx] "m"(env[rbx_index]),
           [rbp] "m"(env[rbp_index]),
           [r12] "m"(env[r12_index]),
           [r13] "m"(env[r13_index]),
           [r14] "m"(env[r14_index]),
-          [r15] "m"(env[r15_index]));
+          [r15] "m"(env[r15_index])
+        : "eax");
 
     // should not be here
-    assert(0);
+    // assert(0);
 }
