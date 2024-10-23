@@ -31,46 +31,52 @@ void simple_test() {
 asm_jmp_buf bufferA, bufferB;
 void routineB();
 
-void routineA() {
+void routineA(int arg) {
     int r;
 
     r = asm_setjmp(bufferA);
     if (r == 0)
-        routineB();
+        routineB(514);
     assert(r == 10001);
+    assert(arg == 114);
 
     r = asm_setjmp(bufferA);
     if (r == 0)
         asm_longjmp(bufferB, 20001);
     assert(r == 10002);
+    assert(arg == 114);
 
     r = asm_setjmp(bufferA);
     if (r == 0)
         asm_longjmp(bufferB, 20002);
     assert(r == 10003);
+    assert(arg == 114);
 }
 
-void routineB() {
+void routineB(int arg) {
     int r;
 
     r = asm_setjmp(bufferB);
     if (r == 0)
         asm_longjmp(bufferA, 10001);
     assert(r == 20001);
+    assert(arg == 514);
 
     r = asm_setjmp(bufferB);
     if (r == 0)
         asm_longjmp(bufferA, 10002);
     assert(r == 20002);
+    assert(arg == 514);
 
     r = asm_setjmp(bufferB);
     if (r == 0)
         asm_longjmp(bufferA, 10003);
     assert(r == 20003);
+    assert(arg == 514);
 }
 
 void simple_coroutines() {
-    routineA();
+    routineA(114);
     printf("Simple Coroutines Passed.\n");
 }
 
