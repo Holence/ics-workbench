@@ -91,8 +91,8 @@ asm_setjmp:\n\
     ret \n\
 ");
 
-// #include <assert.h>
-void asm_longjmp(asm_jmp_buf env, int val) {
+#include <assert.h>
+__attribute__((noreturn)) void asm_longjmp(asm_jmp_buf env, int val) {
     asm(
         // set rax to return value
         // int进来是esi，对应这里也要写成eax而不是rax
@@ -124,5 +124,5 @@ void asm_longjmp(asm_jmp_buf env, int val) {
         : "eax");
 
     // should not be here
-    // assert(0);
+    assert(0);
 }
