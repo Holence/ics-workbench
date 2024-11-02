@@ -5,3 +5,6 @@ include ../Makefile
 
 # gcc thinks simple_recursion is infinite-recursion...
 CFLAGS += -Wno-infinite-recursion
+
+test: all
+	./$(NAME)-64

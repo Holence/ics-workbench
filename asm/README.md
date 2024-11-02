@@ -83,3 +83,8 @@ x86-64
 > 由于接口是这样的`int asm_setjmp(asm_jmp_buf env);`，为了让`asm_setjmp`能够设置外部的值，`asm_jmp_buf`得定义为指针，而不是结构体！
 
 `longjmp`就很简单了，恢复所有值即可，并设置返回值到`rax`中（注意`rip`的恢复只能用`jmp`指令实现）
+
+> [!TIP]
+> `asm_longjmp`的`__attribute__((noreturn))`十分重要，如果不加的话会在O2及以上的优化时发生很微妙的bug，见[我的libco](https://github.com/Holence/os-workbench-2024/tree/main/libco)
+
+`main.c`中的测试并不完整，涉及到栈切换的测试见[我的libco](https://github.com/Holence/os-workbench-2024/tree/main/libco)。

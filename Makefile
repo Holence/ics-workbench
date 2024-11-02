@@ -4,9 +4,16 @@ ifeq ($(NAME),)
 $(error Should make in each lab's directory)
 endif
 
+# 默认O1优化，可自定义`make OPTIMIZE=-O2`传入
+ifeq ($(OPTIMIZE),)
+	CFLAGS += -O1
+else
+	CFLAGS += $(OPTIMIZE)
+endif
+
 SRCS   := $(shell find . -maxdepth 1 -name "*.c")
 DEPS   := $(shell find . -maxdepth 1 -name "*.h") $(SRCS)
-CFLAGS += -O1 -std=gnu11 -ggdb -Wall -Werror -Wno-unused-result -Wno-unused-value -Wno-unused-variable
+CFLAGS += -std=gnu11 -ggdb -Wall -Werror -Wno-unused-result -Wno-unused-value -Wno-unused-variable
 
 .PHONY: all git test clean commit-and-make
 
